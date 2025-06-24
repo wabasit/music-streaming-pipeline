@@ -52,3 +52,11 @@ windowSpec = Window.partitionBy("genre", "date").orderBy(desc("duration"))
 top_songs = df.withColumn("rank", row_number().over(windowSpec)) \
               .filter(col("rank") <= 3)
 
+# Top 5 Genres per Day
+genre_total = genre_kpi.groupBy("date", "genre").agg(
+    _sum("listen_count").alias("total_listens")
+)
+top_genres = genre_total.withColumn("rank", row_number().over(
+    Window.partitionBy("date").orderBy(desc("total_listens"))
+)).filter(col("rank") <= 5)
+
