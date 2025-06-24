@@ -36,4 +36,17 @@ with DAG(
     default_args=default_args
 ) as dag:
 
+    start = DummyOperator(task_id="start")
+
+    wait_for_stream_file = S3KeySensor(
+        task_id="await_stream_files",
+        bucket_name=bucket,
+        bucket_key=f"{streaming_prefix}*.csv",
+        wildcard_match=True,
+        aws_conn_id="aws_default",
+        timeout=60 * 60,
+        poke_interval=120,
+        mode="reschedule",
+    )
+
     
