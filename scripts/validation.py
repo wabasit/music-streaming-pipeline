@@ -105,4 +105,14 @@ def run_validations(songs_df: DataFrame, users_df: DataFrame, streams_df: DataFr
     users_df = flag_and_save_bad_rows(users_df, ["user_id", "user_age", "user_country"], "Users", "bad_rows/users_bad_rows.csv")
     streams_df = flag_and_save_bad_rows(streams_df, ["user_id", "track_id", "listen_time"], "Streams", "bad_rows/streams_bad_rows.csv")
     
+    # 2. NULL CHECKS
+    check_nulls(songs_df, ["track_id", "track_genre", "duration_ms"], "Songs")
+    check_nulls(users_df, ["user_id", "user_age", "user_country"], "Users")
+    check_nulls(streams_df, ["user_id", "track_id", "listen_time"], "Streams")
+
+    # 3. DUPLICATE CHECKS
+    check_duplicates(users_df, ["user_id"], "Users")
+    check_duplicates(songs_df, ["track_id"], "Songs")
+    check_duplicates(streams_df, ["user_id", "track_id", "listen_time"], "Streams")
+
     
