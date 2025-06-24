@@ -69,3 +69,14 @@ def check_duplicates(df: DataFrame, subset: List[str], name: str):
     else:
         print(f"[{name}] No duplicates in {subset}.")
 
+# --- RANGE / LOGIC VALIDATION ---
+def check_range(df: DataFrame, column: str, min_val: int = None, max_val: int = None, name: str = ""):
+    if min_val is not None:
+        below_min = df.filter(col(column) < min_val).count()
+        if below_min > 0:
+            print(f"[{name}] {below_min} values in '{column}' below {min_val}.")
+    if max_val is not None:
+        above_max = df.filter(col(column) > max_val).count()
+        if above_max > 0:
+            print(f"[{name}] {above_max} values in '{column}' above {max_val}.")
+
