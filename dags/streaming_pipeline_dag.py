@@ -145,3 +145,11 @@ with DAG(
         subject="Airflow Success",
         aws_conn_id="aws_default",
     )
+
+    notify_failure = SnsPublishOperator(
+        task_id="notify_failure",
+        target_arn=sns_arn,
+        message="Music Pipeline failed. Check logs for details.",
+        subject="Airflow Failure",
+        aws_conn_id="aws_default",
+    )
