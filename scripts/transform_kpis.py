@@ -37,3 +37,13 @@ df = streams_df.join(songs_df, on="track_id", how="inner") \
 # === 5. Add date column ===
 df = df.withColumn("date", col("listen_time").substr(0, 10))
 
+# === 6. KPI Calculations ===
+
+# Genre KPIs
+genre_kpi = df.groupBy("genre", "date").agg(
+    count("track_id").alias("listen_count"),
+    count("user_id").alias("unique_listeners"),
+    _sum("duration").alias("total_listen_time"),
+    avg("duration").alias("avg_listen_time_per_user")
+)
+
