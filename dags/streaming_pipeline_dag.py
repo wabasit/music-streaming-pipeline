@@ -95,4 +95,8 @@ with DAG(
         provide_context=True,
     )
 
-    
+    check_validation_status = BranchPythonOperator(
+        task_id="check_validation_status",
+        python_callable=lambda **kwargs: check_glue_job_status(validation_job, "run_validation_job", **kwargs),
+        provide_context=True,
+    )
