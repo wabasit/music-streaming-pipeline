@@ -57,3 +57,17 @@ def ensure_table_exists(table_name, hash_key, range_key=None):
     waiter.wait(TableName=table_name)
     print(f"Table '{table_name}' created.")
 
+# Load CSV rows from S3 and yield dicts
+def load_csv_from_s3(prefix):
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if key.endswith(".csv"):
+                print(f"Reading: {key}")
+                response = s3.get_object(Bucket=bucket, Key=key)
+                content = response["Body"].read().decode("utf-8")
+                reader = csv.DictReader(StringIO(content))
+                for row in reader:
+                    yield row
+
