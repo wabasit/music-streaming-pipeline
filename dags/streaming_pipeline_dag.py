@@ -112,3 +112,8 @@ with DAG(
         python_callable=lambda **kwargs: check_glue_job_status(glue_job_name, "run_transform_job", **kwargs),
         provide_context=True,
     )
+
+    def run_dynamodb_loader():
+        # response = glue.start_job_run(JobName=dynamodb_job_name)
+        response = glue.start_job_run(JobName="load_dynamodb")
+        print(f"Started DynamoDB Glue job: {response['JobRunId']}")
