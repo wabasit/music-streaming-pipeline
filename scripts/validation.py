@@ -115,4 +115,13 @@ def run_validations(songs_df: DataFrame, users_df: DataFrame, streams_df: DataFr
     check_duplicates(songs_df, ["track_id"], "Songs")
     check_duplicates(streams_df, ["user_id", "track_id", "listen_time"], "Streams")
 
-    
+    # 4. RANGE CHECKS
+    check_range(songs_df, "duration_ms", min_val=10, name="Songs")
+    check_range(users_df, "user_age", min_val=10, max_val=120, name="Users")
+
+    # 5. FOREIGN KEY CHECKS
+    check_foreign_keys(streams_df, users_df, "user_id", "Streams", "Users")
+    check_foreign_keys(streams_df, songs_df, "track_id", "Streams", "Songs")
+
+    print("=== ALL VALIDATIONS COMPLETE ===\n")
+    return songs_df, users_df, streams_df
