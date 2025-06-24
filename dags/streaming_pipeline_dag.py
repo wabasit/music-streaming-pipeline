@@ -106,3 +106,9 @@ with DAG(
         python_callable=lambda **kwargs: run_glue_job(glue_job_name, "run_transform_job", **kwargs),
         provide_context=True,
     )
+
+    check_transform_status = BranchPythonOperator(
+        task_id="check_transform_status",
+        python_callable=lambda **kwargs: check_glue_job_status(glue_job_name, "run_transform_job", **kwargs),
+        provide_context=True,
+    )
