@@ -47,3 +47,8 @@ genre_kpi = df.groupBy("genre", "date").agg(
     avg("duration").alias("avg_listen_time_per_user")
 )
 
+# Top 3 Songs per Genre per Day
+windowSpec = Window.partitionBy("genre", "date").orderBy(desc("duration"))
+top_songs = df.withColumn("rank", row_number().over(windowSpec)) \
+              .filter(col("rank") <= 3)
+
