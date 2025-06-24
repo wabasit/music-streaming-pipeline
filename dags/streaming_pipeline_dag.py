@@ -137,3 +137,11 @@ with DAG(
         task_id="archive_streamed_data",
         python_callable=archive_streamed_files,
     )
+
+    notify_success = SnsPublishOperator(
+        task_id="notify_success",
+        target_arn=sns_arn,
+        message="Music Pipeline completed successfully.",
+        subject="Airflow Success",
+        aws_conn_id="aws_default",
+    )
