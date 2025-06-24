@@ -122,3 +122,18 @@ with DAG(
         task_id="load_to_dynamodb",
         python_callable=run_dynamodb_loader,
     )
+
+    def archive_streamed_files():
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        archive_path = f"{streaming_prefix}/archived/{today}/"
+        bucket_obj = s3.Bucket(bucket)
+        for obj in bucket_obj.objects.filter(Prefix=f"{streaming_prefix}/"):
+            if "archived" in obj.key:
+                continue
+            s3.Object(bucket, f"{archive_path}{obj.key.split('/')[-1]}").copy({'Bucket': bucket, 'Key': obj.key})
+            s3.Object(bucket, obj.key).delete()
+
+    archive_data = PythonOperator(
+        task_id="archive_streamed_data",
+        python_callable=archive_streamed_files,
+    )
