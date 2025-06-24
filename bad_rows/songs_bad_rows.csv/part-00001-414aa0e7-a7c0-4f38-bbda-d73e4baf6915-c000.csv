@@ -1,0 +1,2 @@
+id,track_id,artists,album_name,track_name,popularity,duration_ms,explicit,danceability,energy,key,loudness,mode,speechiness,acousticness,instrumentalness,liveness,valence,tempo,time_signature,track_genre
+45024,48RME2XQqVXIaH54NA4pRe,Estas Tonne,"\"\"\"Strings and Stories of a Troubadour\"\"",Live in Odeon,"Vienna 2011\"",,48,549809,False,0.233,0.825,4,-10.095,0,0.0415,0.68,0.946,0.565,0.552,89.01

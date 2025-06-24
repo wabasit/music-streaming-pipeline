@@ -1,0 +1,7 @@
+__pycache__
+.env
+localstack
+transform.ipynb
+scripts/lambda_func.py
+scripts/dynamodb.py
+check_hadoop.py
