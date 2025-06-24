@@ -60,3 +60,7 @@ top_genres = genre_total.withColumn("rank", row_number().over(
     Window.partitionBy("date").orderBy(desc("total_listens"))
 )).filter(col("rank") <= 5)
 
+# === 7. Write Outputs to S3 ===
+genre_kpi.write.mode("overwrite").option("header", True).csv(f"s3://{bucket}/{kpi_output_path}")
+top_songs.write.mode("overwrite").option("header", True).csv(f"s3://{bucket}/{top_songs_output_path}")
+top_genres.write.mode("overwrite").option("header", True).csv(f"s3://{bucket}/{top_genres_output_path}")
