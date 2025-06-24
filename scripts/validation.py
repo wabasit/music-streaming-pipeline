@@ -61,3 +61,11 @@ def check_nulls(df: DataFrame, critical_columns: List[str], name: str):
         else:
             print(f"[{name}] Column '{column}' passed null/NaN check.")
 
+# --- DUPLICATE VALIDATION ---
+def check_duplicates(df: DataFrame, subset: List[str], name: str):
+    dup_count = df.groupBy(subset).count().filter(col("count") > 1).count()
+    if dup_count > 0:
+        print(f"[{name}] Found {dup_count} duplicate records based on {subset}.")
+    else:
+        print(f"[{name}] No duplicates in {subset}.")
+
