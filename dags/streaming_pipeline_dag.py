@@ -69,4 +69,24 @@ with DAG(
             print(f"Started {job_name} with run ID {run_id}")
             return
 
+    def check_glue_job_status(job_name, task_id, **kwargs):
+        ti = kwargs['ti']
+        run_id = ti.xcom_pull(task_ids=task_id, key=f"{task_id}_job_run_id")
+        if not run_id:
+            raise ValueError(f"No JobRunId found in XCom for {task_id}")
+        glue = boto3.client('glue', region_name=region)
+        max_attempts = 20
+        attempt = 0
+        while attempt < max_attempts:
+            status = glue.get_job_run(JobName=job_name, RunId=run_id)['JobRun']['JobRunState']
+            print(f"{job_name} status: {status}")
+            if status in ['SUCCEEDED', 'FAILED', 'STOPPED']:
+                if status != 'SUCCEEDED':
+                    error_msg = f"{job_name} failed with status {status}"
+                    boto3.client('sns', region_name=region).publish(TopicArn=sns_arn, Message=error_msg, Subject="Airflow Failure")
+                return 'run_transform_job' if status == 'SUCCEEDED' else 'notify_failure'
+            time.sleep(30)
+            attempt += 1
+        raise TimeoutError(f"Glue job {job_name} status check timed out")
+
     
