@@ -80,3 +80,11 @@ def check_range(df: DataFrame, column: str, min_val: int = None, max_val: int = 
         if above_max > 0:
             print(f"[{name}] {above_max} values in '{column}' above {max_val}.")
 
+# --- REFERENTIAL INTEGRITY CHECK ---
+def check_foreign_keys(df: DataFrame, ref_df: DataFrame, key: str, df_name: str, ref_name: str):
+    invalid = df.join(ref_df, key, "left_anti")
+    if invalid.count() > 0:
+        print(f"[{df_name}] Contains {invalid.count()} records with invalid '{key}' not found in {ref_name}.")
+    else:
+        print(f"[{df_name}] All '{key}' values exist in {ref_name}.")
+
