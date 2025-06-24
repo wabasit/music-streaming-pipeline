@@ -100,4 +100,9 @@ def run_validations(songs_df: DataFrame, users_df: DataFrame, streams_df: DataFr
     validate_schema(users_df, {"user_id": "string", "user_age": "int", "user_country": "string"}, "Users")
     validate_schema(streams_df, {"user_id": "string", "track_id": "string", "listen_time": "timestamp"}, "Streams")
 
+    # Flag and save bad rows
+    songs_df = flag_and_save_bad_rows(songs_df, ["track_id", "track_genre", "duration_ms"], "Songs", "bad_rows/songs_bad_rows.csv")
+    users_df = flag_and_save_bad_rows(users_df, ["user_id", "user_age", "user_country"], "Users", "bad_rows/users_bad_rows.csv")
+    streams_df = flag_and_save_bad_rows(streams_df, ["user_id", "track_id", "listen_time"], "Streams", "bad_rows/streams_bad_rows.csv")
+    
     
