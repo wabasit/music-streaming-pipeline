@@ -153,3 +153,17 @@ with DAG(
         subject="Airflow Failure",
         aws_conn_id="aws_default",
     )
+
+    end = DummyOperator(task_id="end")
+
+    # === DAG Flow ===
+    start >> wait_for_stream_file >> run_validation_job >> check_validation_status
+    check_validation_status >> run_transform_job
+    check_validation_status >> notify_failure
+
+    run_transform_job >> check_transform_status
+    check_transform_status >> load_to_dynamodb
+    check_transform_status >> notify_failure
+
+    load_to_dynamodb >> archive_data >> notify_success >> end
+    notify_failure >> end
