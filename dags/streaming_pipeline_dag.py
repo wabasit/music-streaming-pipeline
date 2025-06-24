@@ -117,3 +117,8 @@ with DAG(
         # response = glue.start_job_run(JobName=dynamodb_job_name)
         response = glue.start_job_run(JobName="load_dynamodb")
         print(f"Started DynamoDB Glue job: {response['JobRunId']}")
+
+    load_to_dynamodb = PythonOperator(
+        task_id="load_to_dynamodb",
+        python_callable=run_dynamodb_loader,
+    )
