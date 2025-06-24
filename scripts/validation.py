@@ -88,3 +88,16 @@ def check_foreign_keys(df: DataFrame, ref_df: DataFrame, key: str, df_name: str,
     else:
         print(f"[{df_name}] All '{key}' values exist in {ref_name}.")
 
+# --- ENTRYPOINT FUNCTION ---
+def run_validations(songs_df: DataFrame, users_df: DataFrame, streams_df: DataFrame):
+    print("\n=== RUNNING VALIDATIONS ===")
+
+    # 1. SCHEMA CHECKS
+    songs_df = songs_df.withColumn("duration_ms", col("duration_ms").cast("int"))
+    users_df = users_df.withColumn("user_age", col("user_age").cast("int"))
+    streams_df = streams_df.withColumn("listen_time", col("listen_time").cast("timestamp"))
+    validate_schema(songs_df, {"track_id": "string", "track_genre": "string", "duration_ms": "int"}, "Songs")
+    validate_schema(users_df, {"user_id": "string", "user_age": "int", "user_country": "string"}, "Users")
+    validate_schema(streams_df, {"user_id": "string", "track_id": "string", "listen_time": "timestamp"}, "Streams")
+
+    
