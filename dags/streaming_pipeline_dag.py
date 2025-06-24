@@ -49,4 +49,24 @@ with DAG(
         mode="reschedule",
     )
 
+    def run_glue_job(job_name, task_id, **kwargs):
+        glue = boto3.client('glue', region_name=region)
+        sns = boto3.client('sns', region_name=region)
+        max_attempts = 3
+        attempt = 1
+        while attempt <= max_attempts:
+            response = glue.get_job_runs(JobName=job_name, MaxResults=10)
+            active_runs = [r for r in response['JobRuns'] if r['JobRunState'] in ['RUNNING', 'STARTING', 'QUEUED']]
+            if active_runs:
+                if attempt == max_attempts:
+                    sns.publish(TopicArn=sns_arn, Message=f"{job_name} failed to start. Active runs present.", Subject="Airflow Failure")
+                    raise RuntimeError(f"Too many active runs for {job_name}")
+                time.sleep(30)
+                attempt += 1
+                continue
+            run_id = glue.start_job_run(JobName=job_name)['JobRunId']
+            kwargs['ti'].xcom_push(key=f"{task_id}_job_run_id", value=run_id)
+            print(f"Started {job_name} with run ID {run_id}")
+            return
+
     
