@@ -71,3 +71,16 @@ def load_csv_from_s3(prefix):
                 for row in reader:
                     yield row
 
+# Load data to DynamoDB
+for config in tables_config.values():
+    ensure_table_exists(config["name"], config["hash_key"], config["range_key"])
+    table = dynamodb.Table(config["name"])
+    for item in load_csv_from_s3(config["s3_prefix"]):
+        if config["name"] == "top_songs":
+            item["date#genre"] = f"{item['date']}#{item['genre']}"
+            item["rank"] = round(float(item["rank"]))
+        elif config["name"] == "top_genres":
+            item["rank"] = round(float(item["rank"]))
+        table.put_item(Item=item)
+
+print("DynamoDB Load Complete")
