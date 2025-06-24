@@ -30,3 +30,10 @@ songs_df = songs_df.withColumnRenamed("track_genre", "genre") \
 
 streams_df = streams_df.withColumn("listen_time", col("listen_time").cast("timestamp"))
 
+# === 4. Join datasets ===
+df = streams_df.join(songs_df, on="track_id", how="inner") \
+               .join(users_df, on="user_id", how="inner")
+
+# === 5. Add date column ===
+df = df.withColumn("date", col("listen_time").substr(0, 10))
+
