@@ -100,3 +100,9 @@ with DAG(
         python_callable=lambda **kwargs: check_glue_job_status(validation_job, "run_validation_job", **kwargs),
         provide_context=True,
     )
+
+    run_transform_job = PythonOperator(
+        task_id="run_transform_job",
+        python_callable=lambda **kwargs: run_glue_job(glue_job_name, "run_transform_job", **kwargs),
+        provide_context=True,
+    )
