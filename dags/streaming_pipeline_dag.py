@@ -89,4 +89,10 @@ with DAG(
             attempt += 1
         raise TimeoutError(f"Glue job {job_name} status check timed out")
 
+    run_validation_job = PythonOperator(
+        task_id="run_validation_job",
+        python_callable=lambda **kwargs: run_glue_job(validation_job, "run_validation_job", **kwargs),
+        provide_context=True,
+    )
+
     
