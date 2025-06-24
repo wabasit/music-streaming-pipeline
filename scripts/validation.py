@@ -45,3 +45,19 @@ def flag_and_save_bad_rows(df: DataFrame, critical_columns: list, name: str, out
   # This is the cleaned version to continue with the pipeline
 
 
+# --- NULL VALIDATION ---
+def check_nulls(df: DataFrame, critical_columns: List[str], name: str):
+    for column in critical_columns:
+        field_type = [f.dataType for f in df.schema.fields if f.name == column][0]
+        
+        # For numeric types, check for both null and NaN
+        if isinstance(field_type, NumericType):
+            null_count = df.filter(col(column).isNull() | isnan(col(column))).count()
+        else:
+            null_count = df.filter(col(column).isNull()).count()
+        
+        if null_count > 0:
+            print(f"[{name}] Column '{column}' has {null_count} null or NaN values.")
+        else:
+            print(f"[{name}] Column '{column}' passed null/NaN check.")
+
