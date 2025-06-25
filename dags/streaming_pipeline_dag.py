@@ -31,7 +31,7 @@ default_args = {
 with DAG(
     dag_id="music_data_pipeline",
     start_date=days_ago(1),
-    schedule_interval=timedelta(minutes=15),  # Every 5 minutes
+    schedule_interval=timedelta(minutes=15),  # Every 15 minutes
     catchup=False,
     default_args=default_args
 ) as dag:
@@ -69,13 +69,13 @@ with DAG(
             print(f"Started {job_name} with run ID {run_id}")
             return
 
-    def check_glue_job_status(job_name, task_id, **kwargs):
+    def check_glue_job_status(job_name, task_id, next_task_on_success, **kwargs):
         ti = kwargs['ti']
         run_id = ti.xcom_pull(task_ids=task_id, key=f"{task_id}_job_run_id")
         if not run_id:
             raise ValueError(f"No JobRunId found in XCom for {task_id}")
         glue = boto3.client('glue', region_name=region)
-        max_attempts = 20
+        max_attempts = 40  # Increased timeout for longer jobs
         attempt = 0
         while attempt < max_attempts:
             status = glue.get_job_run(JobName=job_name, RunId=run_id)['JobRun']['JobRunState']
@@ -84,7 +84,8 @@ with DAG(
                 if status != 'SUCCEEDED':
                     error_msg = f"{job_name} failed with status {status}"
                     boto3.client('sns', region_name=region).publish(TopicArn=sns_arn, Message=error_msg, Subject="Airflow Failure")
-                return 'run_transform_job' if status == 'SUCCEEDED' else 'notify_failure'
+                    return 'notify_failure'
+                return next_task_on_success
             time.sleep(30)
             attempt += 1
         raise TimeoutError(f"Glue job {job_name} status check timed out")
@@ -97,7 +98,7 @@ with DAG(
 
     check_validation_status = BranchPythonOperator(
         task_id="check_validation_status",
-        python_callable=lambda **kwargs: check_glue_job_status(validation_job, "run_validation_job", **kwargs),
+        python_callable=lambda **kwargs: check_glue_job_status(validation_job, "run_validation_job", "run_transform_job", **kwargs),
         provide_context=True,
     )
 
@@ -109,29 +110,77 @@ with DAG(
 
     check_transform_status = BranchPythonOperator(
         task_id="check_transform_status",
-        python_callable=lambda **kwargs: check_glue_job_status(glue_job_name, "run_transform_job", **kwargs),
+        python_callable=lambda **kwargs: check_glue_job_status(glue_job_name, "run_transform_job", "run_dynamodb_job", **kwargs),
         provide_context=True,
     )
 
-    def run_dynamodb_loader():
-        # response = glue.start_job_run(JobName=dynamodb_job_name)
-        response = glue.start_job_run(JobName="load_dynamodb")
-        print(f"Started DynamoDB Glue job: {response['JobRunId']}")
+    # Fixed DynamoDB loader to wait for completion
+    def run_and_wait_dynamodb_job(**kwargs):
+        glue = boto3.client('glue', region_name=region)
+        sns = boto3.client('sns', region_name=region)
+        
+        # Check for active runs first
+        response = glue.get_job_runs(JobName=dynamodb_job_name, MaxResults=10)
+        active_runs = [r for r in response['JobRuns'] if r['JobRunState'] in ['RUNNING', 'STARTING', 'QUEUED']]
+        if active_runs:
+            print(f"DynamoDB job already running. Active runs: {len(active_runs)}")
+            # Wait for existing run to complete or fail
+            run_id = active_runs[0]['Id']
+        else:
+            # Start new job
+            response = glue.start_job_run(JobName=dynamodb_job_name)
+            run_id = response['JobRunId']
+            print(f"Started DynamoDB Glue job: {run_id}")
+        
+        # Store run_id in XCom for potential debugging
+        kwargs['ti'].xcom_push(key="dynamodb_job_run_id", value=run_id)
+        
+        # Wait for completion
+        max_attempts = 60  # 30 minutes timeout
+        attempt = 0
+        while attempt < max_attempts:
+            status = glue.get_job_run(JobName=dynamodb_job_name, RunId=run_id)['JobRun']['JobRunState']
+            print(f"DynamoDB job status: {status}")
+            
+            if status == 'SUCCEEDED':
+                print("DynamoDB job completed successfully")
+                return
+            elif status in ['FAILED', 'STOPPED']:
+                error_msg = f"DynamoDB job failed with status {status}"
+                sns.publish(TopicArn=sns_arn, Message=error_msg, Subject="DynamoDB Load Failed")
+                raise RuntimeError(error_msg)
+            
+            time.sleep(30)
+            attempt += 1
+        
+        # Timeout
+        error_msg = f"DynamoDB job timed out after {max_attempts * 30} seconds"
+        sns.publish(TopicArn=sns_arn, Message=error_msg, Subject="DynamoDB Load Timeout")
+        raise TimeoutError(error_msg)
 
-    load_to_dynamodb = PythonOperator(
-        task_id="load_to_dynamodb",
-        python_callable=run_dynamodb_loader,
+    run_dynamodb_job = PythonOperator(
+        task_id="run_dynamodb_job",
+        python_callable=run_and_wait_dynamodb_job,
+        provide_context=True,
     )
 
     def archive_streamed_files():
         today = datetime.utcnow().strftime("%Y-%m-%d")
-        archive_path = f"{streaming_prefix}/archived/{today}/"
+        archive_path = f"{streaming_prefix}archived/{today}/"  # Fixed path
         bucket_obj = s3.Bucket(bucket)
-        for obj in bucket_obj.objects.filter(Prefix=f"{streaming_prefix}/"):
-            if "archived" in obj.key:
-                continue
-            s3.Object(bucket, f"{archive_path}{obj.key.split('/')[-1]}").copy({'Bucket': bucket, 'Key': obj.key})
-            s3.Object(bucket, obj.key).delete()
+        
+        files_to_archive = []
+        for obj in bucket_obj.objects.filter(Prefix=f"{streaming_prefix}"):
+            if "archived" not in obj.key and obj.key.endswith('.csv'):
+                files_to_archive.append(obj.key)
+        
+        print(f"Archiving {len(files_to_archive)} files")
+        for key in files_to_archive:
+            filename = key.split('/')[-1]
+            archive_key = f"{archive_path}{filename}"
+            s3.Object(bucket, archive_key).copy({'Bucket': bucket, 'Key': key})
+            s3.Object(bucket, key).delete()
+            print(f"Archived {key} to {archive_key}")
 
     archive_data = PythonOperator(
         task_id="archive_streamed_data",
@@ -156,14 +205,16 @@ with DAG(
 
     end = DummyOperator(task_id="end")
 
-    # === DAG Flow ===
+    # === FIXED DAG Flow ===
     start >> wait_for_stream_file >> run_validation_job >> check_validation_status
-    check_validation_status >> run_transform_job
+    
+    # Validation branch
+    check_validation_status >> run_transform_job >> check_transform_status
     check_validation_status >> notify_failure
-
-    run_transform_job >> check_transform_status
-    check_transform_status >> load_to_dynamodb
+    
+    # Transform branch  
+    check_transform_status >> run_dynamodb_job >> archive_data >> notify_success >> end
     check_transform_status >> notify_failure
-
-    load_to_dynamodb >> archive_data >> notify_success >> end
+    
+    # Failure path
     notify_failure >> end
