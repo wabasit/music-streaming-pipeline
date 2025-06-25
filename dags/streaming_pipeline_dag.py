@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.operators.dummy import DummyOperator
+from airflow.utils.trigger_rule import TriggerRule
 from airflow.utils.dates import days_ago
 from airflow.models import Variable
 from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
@@ -31,7 +32,7 @@ default_args = {
 with DAG(
     dag_id="music_data_pipeline",
     start_date=days_ago(1),
-    schedule_interval=timedelta(minutes=15),  # Every 15 minutes
+    # schedule_interval=timedelta(minutes=15),
     catchup=False,
     default_args=default_args
 ) as dag:
@@ -203,7 +204,11 @@ with DAG(
         aws_conn_id="aws_default",
     )
 
-    end = DummyOperator(task_id="end")
+    finish = DummyOperator(
+        task_id="end",
+        trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS  # Allows multiple branches to converge
+    )
+
 
     # === FIXED DAG Flow ===
     start >> wait_for_stream_file >> run_validation_job >> check_validation_status
@@ -213,8 +218,9 @@ with DAG(
     check_validation_status >> notify_failure
     
     # Transform branch  
-    check_transform_status >> run_dynamodb_job >> archive_data >> notify_success >> end
+    check_transform_status >> run_dynamodb_job >> archive_data >> notify_success
     check_transform_status >> notify_failure
     
-    # Failure path
-    notify_failure >> end
+    # Connect both notifications to finish
+    notify_success >> finish
+    notify_failure >> finish
