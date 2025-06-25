@@ -72,34 +72,86 @@ def load_csv_from_s3(prefix):
                 if reader.fieldnames is None:
                     print(f"Skipped file with no header: {key}")
                     continue
-                
+
+                # Debug: Print column names for troubleshooting
+                print(f"CSV columns in {key}: {reader.fieldnames}")
+
                 for row in reader:
-                    yield row
+                    yield row, key  # Also return the filename for debugging
 
 # Convert value to int safely, raising an error if conversion fails
-def safe_int(value, field_name, table_name):
+def safe_int(value, field_name, table_name, filename=""):
+    if value in (None, '', 'NULL', 'null'):
+        return None
     try:
         return int(float(value))  # convert to float first, then int
-    except ValueError as e:
-        raise ValueError(f"Invalid number '{value}' for field '{field_name}' in table '{table_name}': {e}")
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"Invalid number '{value}' for field '{field_name}' in table '{table_name}' from file '{filename}': {e}")
 
-# Load data to DynamoDB
-for config in tables_config.values():
-    ensure_table_exists(config["name"], config["hash_key"], config["range_key"])
-    table = dynamodb.Table(config["name"])
-    for item in load_csv_from_s3(config["s3_prefix"]):
-        # inside your loop:
-        if config["name"] == "top_songs":
-            item["date#genre"] = f"{item['date']}#{item['genre']}"
-            item["rank"] = safe_int(item["rank"], "rank", config["name"])
-        elif config["name"] == "top_genres":
-            item["rank"] = safe_int(item["rank"], "rank", config["name"])
+try:
+    # Load data to DynamoDB
+    for config in tables_config.values():
+        ensure_table_exists(config["name"], config["hash_key"], config["range_key"])
+        table = dynamodb.Table(config["name"])
         
-        # Optionally skip if required keys are None
-        if item.get("rank") is None or any(v in (None, '') for v in item.values()):
-            print(f"Skipping invalid item: {item}")
-            continue
+        print(f"\nProcessing table: {config['name']}")
+        
+        for item, filename in load_csv_from_s3(config["s3_prefix"]):
+            try:
+                # Debug: Print first few items to understand data structure
+                print(f"Sample item from {filename}: {dict(list(item.items())[:3])}")
+                
+                # Process based on table type
+                if config["name"] == "top_songs":
+                    # Validate required fields exist
+                    if "date" not in item or "genre" not in item or "rank" not in item:
+                        print(f"Missing required fields in item: {item}")
+                        continue
+                    
+                    item["date#genre"] = f"{item['date']}#{item['genre']}"
+                    rank_value = safe_int(item["rank"], "rank", config["name"], filename)
+                    if rank_value is None:
+                        print(f"Skipping item with null rank: {item}")
+                        continue
+                    item["rank"] = rank_value
+                    
+                elif config["name"] == "top_genres":
+                    # Validate required fields exist
+                    if "date" not in item or "rank" not in item:
+                        print(f"Missing required fields in item: {item}")
+                        continue
+                    
+                    rank_value = safe_int(item["rank"], "rank", config["name"], filename)
+                    if rank_value is None:
+                        print(f"Skipping item with null rank: {item}")
+                        continue
+                    item["rank"] = rank_value
+                
+                # Skip items with missing required keys or empty values for critical fields
+                critical_fields = ["date", "rank"] if config["name"] != "genre_kpi" else ["genre", "date"]
+                if any(item.get(field) in (None, '', 'NULL', 'null') for field in critical_fields):
+                    print(f"Skipping item with missing critical fields: {item}")
+                    continue
 
-        table.put_item(Item=item)
+                # Clean up empty string values (convert to None or remove)
+                cleaned_item = {}
+                for k, v in item.items():
+                    if v in ('', 'NULL', 'null'):
+                        cleaned_item[k] = None
+                    else:
+                        cleaned_item[k] = v
 
-print("DynamoDB Load Complete")
+                table.put_item(Item=cleaned_item)
+                
+            except Exception as item_error:
+                print(f"Error processing item {item} from {filename}: {item_error}")
+                # Continue processing other items instead of failing completely
+                continue
+
+    print("DynamoDB Load Complete")
+
+except Exception as e:
+    print(f"Load Failed: {e}")
+    import traceback
+    print(f"Full traceback: {traceback.format_exc()}")
+    raise e  # This will fail the Glue job properly
