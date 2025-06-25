@@ -36,7 +36,7 @@ tables_config = {
 def ensure_table_exists(table_name, hash_key, range_key=None):
     existing_tables = dynamodb_client.list_tables()["TableNames"]
     if table_name in existing_tables:
-        print(f"✔ Table '{table_name}' exists.")
+        print(f" Table '{table_name}' exists.")
         return
 
     key_schema = [{"AttributeName": hash_key[0], "KeyType": "HASH"}]
@@ -71,6 +71,13 @@ def load_csv_from_s3(prefix):
                 for row in reader:
                     yield row
 
+# Convert value to int safely, raising an error if conversion fails
+def safe_int(value, field_name, table_name):
+    try:
+        return int(float(value))  # convert to float first, then int
+    except ValueError as e:
+        raise ValueError(f"Invalid number '{value}' for field '{field_name}' in table '{table_name}': {e}")
+    
 # Load data to DynamoDB
 for config in tables_config.values():
     ensure_table_exists(config["name"], config["hash_key"], config["range_key"])
