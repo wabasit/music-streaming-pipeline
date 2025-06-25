@@ -68,6 +68,11 @@ def load_csv_from_s3(prefix):
                 response = s3.get_object(Bucket=bucket, Key=key)
                 content = response["Body"].read().decode("utf-8")
                 reader = csv.DictReader(StringIO(content))
+
+                if reader.fieldnames is None:
+                    print(f"Skipped file with no header: {key}")
+                    continue
+                
                 for row in reader:
                     yield row
 
@@ -77,7 +82,7 @@ def safe_int(value, field_name, table_name):
         return int(float(value))  # convert to float first, then int
     except ValueError as e:
         raise ValueError(f"Invalid number '{value}' for field '{field_name}' in table '{table_name}': {e}")
-    
+
 # Load data to DynamoDB
 for config in tables_config.values():
     ensure_table_exists(config["name"], config["hash_key"], config["range_key"])
@@ -89,6 +94,12 @@ for config in tables_config.values():
             item["rank"] = safe_int(item["rank"], "rank", config["name"])
         elif config["name"] == "top_genres":
             item["rank"] = safe_int(item["rank"], "rank", config["name"])
+        
+        # Optionally skip if required keys are None
+        if item.get("rank") is None or any(v in (None, '') for v in item.values()):
+            print(f"Skipping invalid item: {item}")
+            continue
+
         table.put_item(Item=item)
 
 print("DynamoDB Load Complete")
