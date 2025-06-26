@@ -110,6 +110,8 @@ Moves used files to `archived/<date>/` folder in S3
 ### 6. Notifications
 Sends success/failure message via Amazon SNS
 
+![alt text](architecture.png)
+
 ---
 
 ## Glue Transform Functions
